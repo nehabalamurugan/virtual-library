@@ -1,0 +1,199 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #faf9f7;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #0a0a0a;
+  --primary-foreground: #faf9f7;
+  --secondary: #f0eeeb;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f0eeeb;
+  --muted-foreground: #6b6b6b;
+  --accent: #e8e6e3;
+  --accent-foreground: #0a0a0a;
+  --destructive: #3a3a3a;
+  --destructive-foreground: #faf9f7;
+  --border: #0a0a0a;
+  --input: #e8e6e3;
+  --ring: #0a0a0a;
+  --radius: 0px;
+}
+
+@theme inline {
+  --font-sans: 'Caveat', 'Caveat Fallback', cursive;
+  --font-serif: 'Playfair Display', 'Georgia', serif;
+  --font-mono: 'Geist Mono', 'Geist Mono Fallback', monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Sketchy hand-drawn border effect */
+.sketch-border {
+  position: relative;
+  border: 2px solid #0a0a0a;
+}
+
+.sketch-border-thin {
+  position: relative;
+  border: 1px solid #0a0a0a;
+}
+
+/* Book card with rough edges */
+.book-card {
+  position: relative;
+  background: #faf9f7;
+  border: 2px solid #0a0a0a;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.book-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 #0a0a0a;
+}
+
+/* Ink underline effect */
+.ink-underline {
+  position: relative;
+  display: inline;
+}
+
+.ink-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: #0a0a0a;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.ink-underline:hover::after {
+  transform: scaleX(1);
+}
+
+/* Sharpie thick line */
+.sharpie-line {
+  height: 3px;
+  background: #0a0a0a;
+  border-radius: 1px;
+}
+
+.sharpie-line-thin {
+  height: 1.5px;
+  background: #0a0a0a;
+  opacity: 0.4;
+}
+
+/* Cross-hatch pattern for empty states */
+.crosshatch {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    rgba(10, 10, 10, 0.03) 4px,
+    rgba(10, 10, 10, 0.03) 5px
+  );
+}
+
+/* Ink splatter animation */
+@keyframes ink-drip {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes scribble-in {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) rotate(-1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+@keyframes float-drift {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  25% {
+    transform: translateY(-3px) rotate(0.5deg);
+  }
+  75% {
+    transform: translateY(2px) rotate(-0.3deg);
+  }
+}
+
+/* Paper texture */
+.paper-texture {
+  background-color: #faf9f7;
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+}
+
+/* Custom scrollbar - minimal */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #0a0a0a;
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #333;
+}
+
+/* Selection style */
+::selection {
+  background: #0a0a0a;
+  color: #faf9f7;
+}
