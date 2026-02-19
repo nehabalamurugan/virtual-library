@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import type { Book } from '@/lib/books'
+import { getRecommendationAudioUrl } from '@/lib/books'
 import { AudioPlayer } from '@/components/audio-player'
 
 interface BookDetailProps {
@@ -55,7 +56,7 @@ export function BookDetail({ book, onClose }: BookDetailProps) {
       >
         {book && (
           <div
-            className="relative flex w-full max-w-2xl flex-col border-2 border-foreground bg-background p-8 md:p-12"
+            className="relative flex w-full max-w-2xl flex-col border-2 border-foreground bg-background p-8 md:p-12 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close X - hand drawn style */}
@@ -86,40 +87,51 @@ export function BookDetail({ book, onClose }: BookDetailProps) {
               <p className="font-serif text-sm italic text-muted-foreground">
                 {book.author}
               </p>
+              {book.recommendations.length > 1 && (
+                <p className="font-sans text-sm text-muted-foreground">
+                  {book.recommendations.length} people recommended this book
+                </p>
+              )}
             </div>
 
             {/* Hand-drawn divider */}
-            <svg width="100%" height="6" className="mb-8" aria-hidden="true">
+            <svg width="100%" height="6" className="mb-6" aria-hidden="true">
               <line x1="0" y1="3" x2="100%" y2="3" stroke="#0a0a0a" strokeWidth="2.5" strokeDasharray="none" />
             </svg>
 
-            {/* The story - the heart of it */}
-            <div className="mb-8 flex flex-col gap-4">
-              <p className="font-sans text-xl leading-relaxed text-foreground md:text-2xl md:leading-relaxed">
-                {'"'}{book.story}{'"'}
-              </p>
-            </div>
-
-            {/* Audio player - if recording exists */}
-            {book.audioUrl && (
-              <div className="mb-8 border-2 border-foreground/10 p-4">
-                <AudioPlayer src={book.audioUrl} visitorName={book.visitorName} />
-              </div>
-            )}
-
-            {/* Attribution line */}
-            <div className="flex items-end justify-between border-t-2 border-foreground pt-4">
-              <div className="flex flex-col gap-0.5">
-                <span className="font-sans text-lg text-foreground">
-                  -- {book.visitorName}
-                </span>
-              </div>
-              <span className="font-serif text-xs italic text-muted-foreground">
-                {new Date(book.dateAdded).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                })}
-              </span>
+            {/* Recommendations - one section per visitor */}
+            <div className="flex flex-col gap-10">
+              {book.recommendations.map((rec, i) => (
+                <section key={rec.id} className="flex flex-col gap-4">
+                  {book.recommendations.length > 1 && (
+                    <h3 className="font-serif text-sm uppercase tracking-widest text-muted-foreground">
+                      {i === 0 ? 'One visitor said' : 'Another visitor said'}
+                    </h3>
+                  )}
+                  <p className="font-sans text-xl leading-relaxed text-foreground md:text-2xl md:leading-relaxed">
+                    {'"'}{rec.story}{'"'}
+                  </p>
+                  {getRecommendationAudioUrl(rec) && (
+                    <div className="border-2 border-foreground/10 p-4">
+                      <AudioPlayer
+                        src={getRecommendationAudioUrl(rec)!}
+                        visitorName={rec.visitorName}
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-end justify-between border-t-2 border-foreground/20 pt-3">
+                    <span className="font-sans text-lg text-foreground">
+                      — {rec.visitorName}
+                    </span>
+                    <span className="font-serif text-xs italic text-muted-foreground">
+                      {new Date(rec.dateAdded).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                      })}
+                    </span>
+                  </div>
+                </section>
+              ))}
             </div>
           </div>
         )}

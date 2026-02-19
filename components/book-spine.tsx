@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import type { Book, BookSize } from '@/lib/books'
+import { bookHasAudio } from '@/lib/books'
 
 interface BookCardProps {
   book: Book
@@ -49,7 +50,9 @@ export function BookCard({ book, index, onSelect }: BookCardProps) {
         animation: `scribble-in 0.4s ease-out ${index * 0.03}s both`,
       }}
       onClick={() => onSelect(book)}
-      aria-label={`${book.title} by ${book.author} -- story from ${book.visitorName}`}
+      aria-label={book.recommendations.length === 1
+        ? `${book.title} by ${book.author} — story from ${book.recommendations[0].visitorName}`
+        : `${book.title} by ${book.author} — ${book.recommendations.length} people recommended`}
     >
       <div
         className="relative size-full transition-all duration-300 ease-out group-hover:-translate-y-1"
@@ -105,7 +108,7 @@ export function BookCard({ book, index, onSelect }: BookCardProps) {
           />
 
           {/* Audio indicator - small waveform marks in the corner */}
-          {book.audioUrl && (
+          {bookHasAudio(book) && (
             <g opacity="0.35">
               <line x1={dims.width - 16 - pageEdgeWidth} y1={dims.height - 22} x2={dims.width - 16 - pageEdgeWidth} y2={dims.height - 16} stroke="#0a0a0a" strokeWidth="1.2" strokeLinecap="round" />
               <line x1={dims.width - 12 - pageEdgeWidth} y1={dims.height - 26} x2={dims.width - 12 - pageEdgeWidth} y2={dims.height - 16} stroke="#0a0a0a" strokeWidth="1.2" strokeLinecap="round" />
@@ -159,7 +162,9 @@ export function BookCard({ book, index, onSelect }: BookCardProps) {
               className="font-sans text-foreground/35"
               style={{ fontSize: dims.width >= 170 ? '16px' : '14px' }}
             >
-              {book.visitorName}
+              {book.recommendations.length === 1
+                ? book.recommendations[0].visitorName
+                : `${book.recommendations.length} people`}
             </p>
           </div>
         </div>
@@ -174,7 +179,7 @@ export function BookCard({ book, index, onSelect }: BookCardProps) {
           }}
         >
           <p className="font-sans text-sm leading-snug text-foreground/50 italic line-clamp-3">
-            {'"'}{book.story.slice(0, 100)}{'..."'}
+            {'"'}{book.recommendations[0].story.slice(0, 100)}{'..."'}
           </p>
         </div>
       </div>

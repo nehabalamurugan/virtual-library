@@ -2,11 +2,20 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { initialBooks } from '@/lib/books'
-import type { Book } from '@/lib/books'
+import type { Book, AddRecommendationPayload } from '@/lib/books'
+import type { BookSize } from '@/lib/books'
 import { BookCard } from '@/components/book-spine'
 import { BookDetail } from '@/components/book-detail'
 import { InkMarks } from '@/components/dust-particles'
 import { AddBookDialog } from '@/components/add-book-dialog'
+
+const ROTATIONS = [-1.8, -1.2, -0.9, -0.5, -0.3, 0.3, 0.4, 0.6, 0.7, 0.8, 1.1, 1.3, 1.5]
+const SIZES: BookSize[] = ['small', 'medium', 'large', 'tall', 'wide']
+const THICKNESSES = [1, 2, 3, 4, 5]
+
+function normalize(s: string) {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ')
+}
 
 const CANVAS_SIZE = 6000
 
@@ -17,8 +26,8 @@ function seededPosition(id: string, index: number, total: number) {
   }
   h = Math.abs(h)
 
-  // distribute books in a loose organic grid around the center
-  const cols = Math.ceil(Math.sqrt(total))
+  // distribute books in a loose organic grid—wider than tall for endless scroll both ways
+  const cols = Math.max(4, Math.ceil(Math.sqrt(total * 2)))
   const row = Math.floor(index / cols)
   const col = index % cols
 
@@ -52,8 +61,44 @@ export default function LibraryPage() {
     el.scrollTop = CANVAS_SIZE / 2 - el.clientHeight / 2 - 60
   }, [])
 
-  const handleAddBook = useCallback((book: Book) => {
-    setBooks((prev) => [...prev, book])
+  const handleAddRecommendation = useCallback((payload: AddRecommendationPayload) => {
+    const titleNorm = normalize(payload.title)
+    const authorNorm = normalize(payload.author || '')
+    setBooks((prev) => {
+      const existing = prev.find(
+        (b) => normalize(b.title) === titleNorm && normalize(b.author) === authorNorm
+      )
+      if (existing) {
+        const newRec = {
+          id: `${existing.id}-${existing.recommendations.length + 1}`,
+          visitorName: payload.visitorName.trim() || 'Anonymous',
+          story: payload.story.trim(),
+          dateAdded: payload.dateAdded,
+        }
+        return prev.map((b) =>
+          b.id === existing.id
+            ? { ...b, recommendations: [...b.recommendations, newRec] }
+            : b
+        )
+      }
+      const newBook: Book = {
+        id: Date.now().toString(),
+        title: payload.title.trim(),
+        author: payload.author.trim() || 'Unknown',
+        rotation: ROTATIONS[Math.floor(Math.random() * ROTATIONS.length)],
+        size: SIZES[Math.floor(Math.random() * SIZES.length)],
+        thickness: THICKNESSES[Math.floor(Math.random() * THICKNESSES.length)],
+        recommendations: [
+          {
+            id: `${Date.now()}-1`,
+            visitorName: payload.visitorName.trim() || 'Anonymous',
+            story: payload.story.trim(),
+            dateAdded: payload.dateAdded,
+          },
+        ],
+      }
+      return [...prev, newBook]
+    })
   }, [])
 
   const handleSelectBook = useCallback((book: Book) => {
@@ -118,9 +163,11 @@ export default function LibraryPage() {
           <div className="sharpie-line w-12" />
           <div className="flex items-center gap-4">
             <p className="font-sans text-base text-muted-foreground">
-              {books.length} {books.length === 1 ? 'story' : 'stories'}
+              {books.reduce((n, b) => n + b.recommendations.length, 0)} {books.reduce((n, b) => n + b.recommendations.length, 0) === 1 ? 'story' : 'stories'}
+              {' · '}
+              {books.length} {books.length === 1 ? 'book' : 'books'}
             </p>
-            <AddBookDialog onAdd={handleAddBook} />
+            <AddBookDialog onAdd={handleAddRecommendation} />
           </div>
         </div>
         <p className="pointer-events-none font-sans text-sm text-muted-foreground/60">

@@ -75,7 +75,27 @@ export function AudioPlayer({ src, visitorName }: AudioPlayerProps) {
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
 
-  if (hasError) return null
+  if (hasError) {
+    return (
+      <div className="flex flex-col gap-2 rounded border-2 border-foreground/10 bg-muted/30 p-4">
+        <div className="flex items-center gap-2">
+          <svg width="18" height="14" viewBox="0 0 18 14" aria-hidden="true">
+            <line x1="2" y1="5" x2="2" y2="9" stroke="#0a0a0a" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="5.5" y1="3" x2="5.5" y2="11" stroke="#0a0a0a" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="9" y1="1" x2="9" y2="13" stroke="#0a0a0a" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="12.5" y1="4" x2="12.5" y2="10" stroke="#0a0a0a" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="16" y1="5.5" x2="16" y2="8.5" stroke="#0a0a0a" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <span className="font-sans text-sm text-muted-foreground">
+            listen to {visitorName} tell their story
+          </span>
+        </div>
+        <p className="font-sans text-sm italic text-muted-foreground">
+          Recording not available. Add the audio file to <code className="rounded bg-foreground/10 px-1">public/audio/</code> to enable playback.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col gap-3">

@@ -6,17 +6,11 @@ import {
   DialogContent,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import type { Book } from '@/lib/books'
+import type { AddRecommendationPayload } from '@/lib/books'
 
 interface AddBookDialogProps {
-  onAdd: (book: Book) => void
+  onAdd: (payload: AddRecommendationPayload) => void
 }
-
-import type { BookSize } from '@/lib/books'
-
-const ROTATIONS = [-1.8, -1.2, -0.9, -0.5, -0.3, 0.3, 0.4, 0.6, 0.7, 0.8, 1.1, 1.3, 1.5]
-const SIZES: BookSize[] = ['small', 'medium', 'large', 'tall', 'wide']
-const THICKNESSES = [1, 2, 3, 4, 5]
 
 export function AddBookDialog({ onAdd }: AddBookDialogProps) {
   const [open, setOpen] = useState(false)
@@ -37,19 +31,13 @@ export function AddBookDialog({ onAdd }: AddBookDialogProps) {
   function handleSubmit() {
     if (!title.trim() || !story.trim()) return
 
-    const newBook: Book = {
-      id: Date.now().toString(),
+    onAdd({
       title: title.trim(),
       author: author.trim() || 'Unknown',
       visitorName: visitorName.trim() || 'Anonymous',
       story: story.trim(),
       dateAdded: new Date().toISOString().split('T')[0],
-      rotation: ROTATIONS[Math.floor(Math.random() * ROTATIONS.length)],
-      size: SIZES[Math.floor(Math.random() * SIZES.length)],
-      thickness: THICKNESSES[Math.floor(Math.random() * THICKNESSES.length)],
-    }
-
-    onAdd(newBook)
+    })
     reset()
     setOpen(false)
   }
