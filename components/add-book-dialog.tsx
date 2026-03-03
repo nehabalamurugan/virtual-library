@@ -9,7 +9,7 @@ import {
 import type { AddRecommendationPayload } from '@/lib/books'
 
 interface AddBookDialogProps {
-  onAdd: (payload: AddRecommendationPayload) => void
+  onAdd: (payload: AddRecommendationPayload) => Promise<void> | void
 }
 
 export function AddBookDialog({ onAdd }: AddBookDialogProps) {
@@ -19,6 +19,8 @@ export function AddBookDialog({ onAdd }: AddBookDialogProps) {
   const [author, setAuthor] = useState('')
   const [visitorName, setVisitorName] = useState('')
   const [story, setStory] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   function reset() {
     setStep(0)
@@ -26,20 +28,30 @@ export function AddBookDialog({ onAdd }: AddBookDialogProps) {
     setAuthor('')
     setVisitorName('')
     setStory('')
+    setSubmitError(null)
+    setIsSubmitting(false)
   }
 
-  function handleSubmit() {
-    if (!title.trim() || !story.trim()) return
+  async function handleSubmit() {
+    if (!title.trim() || !story.trim() || isSubmitting) return
 
-    onAdd({
-      title: title.trim(),
-      author: author.trim() || 'Unknown',
-      visitorName: visitorName.trim() || 'Anonymous',
-      story: story.trim(),
-      dateAdded: new Date().toISOString().split('T')[0],
-    })
-    reset()
-    setOpen(false)
+    setIsSubmitting(true)
+    setSubmitError(null)
+    try {
+      await onAdd({
+        title: title.trim(),
+        author: author.trim() || 'Unknown',
+        visitorName: visitorName.trim() || 'Anonymous',
+        story: story.trim(),
+        dateAdded: new Date().toISOString().split('T')[0],
+        source: 'manual_form',
+      })
+      reset()
+      setOpen(false)
+    } catch {
+      setSubmitError('Could not save your story. Please try again.')
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -153,12 +165,17 @@ export function AddBookDialog({ onAdd }: AddBookDialogProps) {
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={!story.trim()}
+                  disabled={!story.trim() || isSubmitting}
                   className="border-2 border-foreground bg-foreground px-6 py-2 font-sans text-lg text-background transition-all duration-300 hover:bg-background hover:text-foreground disabled:opacity-30"
                 >
-                  place on the wall
+                  {isSubmitting ? 'saving...' : 'place on the wall'}
                 </button>
               </div>
+              {submitError && (
+                <p className="font-sans text-sm text-red-700">
+                  {submitError}
+                </p>
+              )}
             </div>
           )}
         </div>

@@ -6,6 +6,9 @@ export interface Recommendation {
   visitorName: string
   story: string
   dateAdded: string
+  source?: 'manual_form' | 'exhibit_audio'
+  q1Transcript?: string
+  q2Transcript?: string
   /** Filename in public/audio/ (e.g. "mara-bell-jar.mp3"). */
   audioFile?: string
 }
@@ -28,6 +31,9 @@ export interface AddRecommendationPayload {
   visitorName: string
   story: string
   dateAdded: string
+  source?: 'manual_form' | 'exhibit_audio'
+  q1Transcript?: string
+  q2Transcript?: string
 }
 
 /** Base path for art-installation audio. */

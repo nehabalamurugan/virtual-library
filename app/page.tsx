@@ -3,19 +3,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { initialBooks } from '@/lib/books'
 import type { Book, AddRecommendationPayload } from '@/lib/books'
-import type { BookSize } from '@/lib/books'
 import { BookCard } from '@/components/book-spine'
 import { BookDetail } from '@/components/book-detail'
 import { InkMarks } from '@/components/dust-particles'
 import { AddBookDialog } from '@/components/add-book-dialog'
-
-const ROTATIONS = [-1.8, -1.2, -0.9, -0.5, -0.3, 0.3, 0.4, 0.6, 0.7, 0.8, 1.1, 1.3, 1.5]
-const SIZES: BookSize[] = ['small', 'medium', 'large', 'tall', 'wide']
-const THICKNESSES = [1, 2, 3, 4, 5]
-
-function normalize(s: string) {
-  return s.trim().toLowerCase().replace(/\s+/g, ' ')
-}
 
 const CANVAS_SIZE = 6000
 
@@ -48,6 +39,8 @@ function seededPosition(id: string, index: number, total: number) {
 
 export default function LibraryPage() {
   const [books, setBooks] = useState<Book[]>(initialBooks)
+  const [isLoadingBooks, setIsLoadingBooks] = useState(true)
+  const [booksError, setBooksError] = useState<string | null>(null)
   const [selectedBook, setSelectedBook] = useState<Book | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -61,45 +54,48 @@ export default function LibraryPage() {
     el.scrollTop = CANVAS_SIZE / 2 - el.clientHeight / 2 - 60
   }, [])
 
-  const handleAddRecommendation = useCallback((payload: AddRecommendationPayload) => {
-    const titleNorm = normalize(payload.title)
-    const authorNorm = normalize(payload.author || '')
-    setBooks((prev) => {
-      const existing = prev.find(
-        (b) => normalize(b.title) === titleNorm && normalize(b.author) === authorNorm
-      )
-      if (existing) {
-        const newRec = {
-          id: `${existing.id}-${existing.recommendations.length + 1}`,
-          visitorName: payload.visitorName.trim() || 'Anonymous',
-          story: payload.story.trim(),
-          dateAdded: payload.dateAdded,
-        }
-        return prev.map((b) =>
-          b.id === existing.id
-            ? { ...b, recommendations: [...b.recommendations, newRec] }
-            : b
-        )
+  const fetchBooks = useCallback(async () => {
+    try {
+      const response = await fetch('/api/books', { cache: 'no-store' })
+      if (!response.ok) throw new Error('Failed to fetch books')
+      const data = (await response.json()) as Book[]
+      if (Array.isArray(data)) {
+        setBooks(data)
       }
-      const newBook: Book = {
-        id: Date.now().toString(),
-        title: payload.title.trim(),
-        author: payload.author.trim() || 'Unknown',
-        rotation: ROTATIONS[Math.floor(Math.random() * ROTATIONS.length)],
-        size: SIZES[Math.floor(Math.random() * SIZES.length)],
-        thickness: THICKNESSES[Math.floor(Math.random() * THICKNESSES.length)],
-        recommendations: [
-          {
-            id: `${Date.now()}-1`,
-            visitorName: payload.visitorName.trim() || 'Anonymous',
-            story: payload.story.trim(),
-            dateAdded: payload.dateAdded,
-          },
-        ],
-      }
-      return [...prev, newBook]
-    })
+      setBooksError(null)
+    } catch (error) {
+      console.error(error)
+      setBooksError('Unable to sync with the archive. Showing local entries.')
+    } finally {
+      setIsLoadingBooks(false)
+    }
   }, [])
+
+  useEffect(() => {
+    void fetchBooks()
+  }, [fetchBooks])
+
+  const handleAddRecommendation = useCallback(async (payload: AddRecommendationPayload) => {
+    const response = await fetch('/api/books', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const body = (await response.json().catch(() => ({}))) as { error?: string }
+      throw new Error(body.error || 'Failed to save story')
+    }
+
+    const body = (await response.json()) as { books?: Book[] }
+    if (Array.isArray(body.books)) {
+      setBooks(body.books)
+      setBooksError(null)
+      return
+    }
+
+    await fetchBooks()
+  }, [fetchBooks])
 
   const handleSelectBook = useCallback((book: Book) => {
     if (!isDragging) setSelectedBook(book)
@@ -169,6 +165,16 @@ export default function LibraryPage() {
             </p>
             <AddBookDialog onAdd={handleAddRecommendation} />
           </div>
+          {booksError && (
+            <p className="font-sans text-xs text-red-700">
+              {booksError}
+            </p>
+          )}
+          {isLoadingBooks && (
+            <p className="font-sans text-xs text-muted-foreground">
+              loading archive...
+            </p>
+          )}
         </div>
         <p className="pointer-events-none font-sans text-sm text-muted-foreground/60">
           drag to explore
