@@ -7,10 +7,11 @@ const QUESTION_ONE = 'Tell me about a time in your life when a book meant the mo
 const QUESTION_TWO = 'What is the name of the book?'
 
 /** Pre-recorded audio files for exhibit. Place in public/audio/ */
-const INTRO_AUDIO = '/audio/exhibit-into.mp3'
-const QUESTION_1_AUDIO = '/audio/exhibit-question1.mp3'
-const QUESTION_2_AUDIO = '/audio/exhibit-question2.mp3'
-const OUTRO_AUDIO = '/audio/exhibit-outro.mp3'
+const AUDIO_VERSION = 'v2' // Bump this whenever you replace audio files
+const INTRO_AUDIO = `/audio/exhibit-intro.mp3?v=${AUDIO_VERSION}`
+const QUESTION_1_AUDIO = `/audio/exhibit-question1.mp3?v=${AUDIO_VERSION}`
+const QUESTION_2_AUDIO = `/audio/exhibit-question2.mp3?v=${AUDIO_VERSION}`
+const OUTRO_AUDIO = `/audio/exhibit-outro.mp3?v=${AUDIO_VERSION}`
 
 const INTRO_WAIT_MS = 5_000
 const Q1_RECORDING_MS = 60_000

@@ -1,4 +1,12 @@
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm run build"
+  "buildCommand": "pnpm run build",
+  "headers": [
+    {
+      "source": "/audio/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    }
+  ]
 }

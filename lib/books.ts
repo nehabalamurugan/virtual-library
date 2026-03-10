@@ -39,11 +39,14 @@ export interface AddRecommendationPayload {
 /** Base path for art-installation audio. */
 export const AUDIO_BASE_PATH = '/audio'
 
+/** Bump when replacing book story MP3s to bypass caches. */
+const AUDIO_VERSION = 'v2'
+
 export function getRecommendationAudioUrl(rec: Recommendation): string | undefined {
   if (!rec.audioFile) return undefined
   const base = AUDIO_BASE_PATH.replace(/\/$/, '')
   const file = rec.audioFile.replace(/^\//, '')
-  return `${base}/${file}`
+  return `${base}/${file}?v=${AUDIO_VERSION}`
 }
 
 /** Whether this book has any recommendation with audio. */
