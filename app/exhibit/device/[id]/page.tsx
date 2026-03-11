@@ -241,7 +241,14 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black">
       <video
-        ref={videoRef}
+        ref={(el) => {
+          // React's muted prop doesn't reliably set the DOM attribute on iOS/Android.
+          // Set it directly on the element so autoplay is permitted without a user gesture.
+          if (el) {
+            el.muted = !userActivated
+            videoRef.current = el
+          }
+        }}
         src={videoUrl}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-200 ${
           showBlack ? 'opacity-0' : 'opacity-100'
@@ -254,22 +261,13 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
         onCanPlay={handleVideoCanPlay}
       />
       {showBlack && <div className="absolute inset-0 bg-black" />}
-      {faceDetected && mode !== 'killed' && (
-        <button
-          type="button"
-          onClick={() => setFaceDetected(false)}
-          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black text-white transition-opacity hover:bg-black/90"
-        >
-          <span className="rounded bg-neutral-800 px-8 py-4 font-sans text-xl">Tap to start again</span>
-        </button>
-      )}
       {!userActivated && !showBlack && (
         <button
           type="button"
           onClick={handleTapToStart}
-          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/40 text-white transition-opacity hover:bg-black/30"
+          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/20 text-white transition-opacity hover:bg-black/10"
         >
-          <span className="rounded bg-black/60 px-8 py-4 font-sans text-xl">Tap to start</span>
+          <span className="rounded border border-white/60 bg-white/20 px-8 py-4 font-sans text-xl backdrop-blur-sm">Tap to start</span>
         </button>
       )}
       <video
