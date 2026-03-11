@@ -79,6 +79,9 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
   }, [showBlack, videoUrl, userActivated])
 
   useEffect(() => {
+    // Skip face detection on iOS/Android — camera + video concurrency breaks playback on mobile
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return
+
     let cancelled = false
 
     async function init() {
