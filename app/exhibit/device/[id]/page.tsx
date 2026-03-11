@@ -82,11 +82,6 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
     let cancelled = false
 
     async function init() {
-      // On mobile, delay face detection so the main video can start first (iOS limits concurrent video)
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-      if (isMobile) {
-        await new Promise((r) => setTimeout(r, 2000))
-      }
       if (cancelled) return
 
       try {
@@ -117,7 +112,9 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
 
   useEffect(() => {
     const camera = cameraRef.current
-    if (!camera || !detectorReady) return
+    // Wait for user tap before requesting camera — avoids the iOS permission popup on load
+    // and prevents the camera stream from competing with video autoplay on iOS.
+    if (!camera || !detectorReady || !userActivated) return
 
     let cancelled = false
 
@@ -153,7 +150,7 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
       const cam = cameraRef.current
       if (cam?.srcObject) cam.srcObject = null
     }
-  }, [detectorReady])
+  }, [detectorReady, userActivated])
 
   useEffect(() => {
     const detector = faceDetectorRef.current
