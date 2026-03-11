@@ -39,12 +39,12 @@ Replace `YOUR-DOMAIN` with your actual deployment URL (e.g. `living-library.verc
 **Audio interview section:**
 | Control | What it does |
 |---------|--------------|
-| **play intro** | Plays intro + question → records 1 min → saves to library. Does not play outro. |
-| **play outro** | Plays the thank-you clip whenever you choose. Use after a session or anytime. |
+| **play intro** | Plays intro + question, then starts recording. Records until you hit play outro. |
+| **play outro** | Stops recording, plays thank-you clip, transcribes, and saves to library. Or plays outro only (when not recording). |
 | **play all** | Plays intro + outro in full (no recording). For preview or testing. |
 | **Space bar** | Shortcut for play intro (when not running) |
 
-**Flow:** Click **play intro** → intro + question plays → 1 min recording → story saved → click **play outro** when the visitor is ready to hear it. Use **play all** to preview the full audio (no recording).
+**Flow:** Click **play intro** → intro + question plays → recording starts. When the visitor is done, click **play outro** → recording stops → outro plays → story is transcribed and saved. Use **play all** to preview the full audio (no recording).
 
 ---
 
@@ -100,4 +100,4 @@ If video env vars are not set, default Cloudinary videos are used.
 3. [ ] Open `/exhibit/control` on the operator computer
 4. [ ] Set video exhibit mode to **Playing**
 5. [ ] Load `/exhibit/device/1` through `/exhibit/device/4` on each device (full screen)
-6. [ ] Test: play intro (records 1 min), play outro when ready, then try play all (preview)
+6. [ ] Test: play intro (starts recording), play outro when done (stops, transcribes, saves), then try play all (preview)

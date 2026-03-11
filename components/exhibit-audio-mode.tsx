@@ -9,7 +9,6 @@ const AUDIO_VERSION = 'v2' // Bump this whenever you replace audio files
 const INTRO_AND_QUESTION_AUDIO = `/audio/library_question.mp3?v=${AUDIO_VERSION}`
 const OUTRO_AUDIO = `/audio/exhibit-outro.mp3?v=${AUDIO_VERSION}`
 
-const RECORDING_MS = 60_000
 const PRE_RECORD_DELAY_MS = 1_500
 
 function wait(ms: number) {
@@ -55,31 +54,6 @@ function createAndStartRecorder(stream: MediaStream): MediaRecorder {
   throw new Error('This browser does not support audio recording. Try Chrome or Firefox.')
 }
 
-async function recordForDuration(stream: MediaStream, durationMs: number) {
-  return new Promise<Blob>((resolve, reject) => {
-    const chunks: BlobPart[] = []
-    let recorder: MediaRecorder
-
-    try {
-      recorder = createAndStartRecorder(stream)
-    } catch (e) {
-      reject(e)
-      return
-    }
-
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) chunks.push(event.data)
-    }
-    recorder.onerror = () => reject(new Error('Audio recorder failed.'))
-    recorder.onstop = () => {
-      resolve(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }))
-    }
-
-    window.setTimeout(() => {
-      if (recorder.state !== 'inactive') recorder.stop()
-    }, durationMs)
-  })
-}
 
 async function transcribeAudio(audioBlob: Blob, label: string) {
   const formData = new FormData()
@@ -133,10 +107,13 @@ type ExhibitAudioModeProps = {
 
 export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
   const [isRunning, setIsRunning] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const [status, setStatus] = useState('Ready. Click start when participant sits down.')
   const [lastEntryPreview, setLastEntryPreview] = useState<{ title: string; story: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const recorderRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<BlobPart[]>([])
 
   const stopStream = useCallback(() => {
     if (!streamRef.current) return
@@ -146,36 +123,17 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
     streamRef.current = null
   }, [])
 
-  const runInterviewSession = useCallback(async () => {
-    if (isRunning) return
-
-    setIsRunning(true)
-    setError(null)
-    setStatus('Requesting microphone access...')
+  const finishRecording = useCallback(async (audioBlob: Blob) => {
+    setIsRecording(false)
+    recorderRef.current = null
+    stopStream()
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      streamRef.current = stream
-
-      setStatus('Playing intro and question...')
-      await playAudio(INTRO_AND_QUESTION_AUDIO)
-      await wait(PRE_RECORD_DELAY_MS)
-
-      setStatus('Recording (1 min)...')
-      let recordStream = stream
-      let answerAudio: Blob
-      try {
-        answerAudio = await recordForDuration(stream, RECORDING_MS)
-      } catch (recordErr) {
-        recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        for (const t of stream.getTracks()) t.stop()
-        answerAudio = await recordForDuration(recordStream, RECORDING_MS)
-      }
-
-      if (recordStream !== stream) for (const t of recordStream.getTracks()) t.stop()
+      setStatus('Playing outro...')
+      await playAudio(OUTRO_AUDIO)
 
       setStatus('Transcribing...')
-      const transcript = await transcribeAudio(answerAudio, 'question-one')
+      const transcript = await transcribeAudio(audioBlob, 'question-one')
       console.log('[Living Library] transcript:', transcript)
 
       setStatus('Extracting book details...')
@@ -196,23 +154,80 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
       await postRecommendation(payload)
 
       setLastEntryPreview({ title: extracted.title, story: extracted.story })
-      setStatus('Recording saved. Play outro when ready.')
+      setStatus('Recording saved.')
     } catch (sessionError) {
       console.error(sessionError)
       setError(sessionError instanceof Error ? sessionError.message : 'Interview session failed.')
       setStatus('Session failed. Check audio permissions and try again.')
     } finally {
-      stopStream()
+      setIsRunning(false)
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel()
       }
-      setIsRunning(false)
     }
-  }, [isRunning, stopStream])
+  }, [stopStream])
+
+  const finishRecordingRef = useRef(finishRecording)
+  finishRecordingRef.current = finishRecording
+
+  const runInterviewSession = useCallback(async () => {
+    if (isRunning || isRecording) return
+
+    setIsRunning(true)
+    setError(null)
+    setStatus('Requesting microphone access...')
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      streamRef.current = stream
+
+      setStatus('Playing intro and question...')
+      await playAudio(INTRO_AND_QUESTION_AUDIO)
+      await wait(PRE_RECORD_DELAY_MS)
+
+      setStatus('Recording... Press play outro when done.')
+      chunksRef.current = []
+      const recorder = createAndStartRecorder(stream)
+      recorderRef.current = recorder
+      setIsRecording(true)
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data)
+      }
+      recorder.onerror = () => {
+        setError('Audio recorder failed.')
+        setIsRecording(false)
+        recorderRef.current = null
+        stopStream()
+        setIsRunning(false)
+      }
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        void finishRecordingRef.current(blob)
+      }
+    } catch (sessionError) {
+      console.error(sessionError)
+      setError(sessionError instanceof Error ? sessionError.message : 'Interview session failed.')
+      setStatus('Session failed. Check audio permissions and try again.')
+      setIsRunning(false)
+      stopStream()
+    }
+  }, [isRunning, isRecording, stopStream])
+
+  const handleOutro = useCallback(async () => {
+    const recorder = recorderRef.current
+    if (isRecording && recorder && recorder.state !== 'inactive') {
+      recorder.stop()
+      return
+    }
+    if (!isRecording) {
+      await playAudio(OUTRO_AUDIO)
+    }
+  }, [isRecording])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      if (event.code === 'Space' && !isRunning) {
+      if (event.code === 'Space' && !isRunning && !isRecording) {
         event.preventDefault()
         void runInterviewSession()
       }
@@ -224,7 +239,7 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
       stopStream()
       if ('speechSynthesis' in window) window.speechSynthesis.cancel()
     }
-  }, [isRunning, runInterviewSession, stopStream])
+  }, [isRunning, isRecording, runInterviewSession, stopStream])
 
   const content = (
     <section className={`font-control w-full border-2 border-neutral-600 bg-neutral-950/90 p-12 ${embedded ? '' : 'max-w-4xl'}`}>
@@ -232,7 +247,7 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
         Audio Interview
       </h1>
       <p className="mt-4 text-lg text-neutral-500 md:text-xl">
-        <strong>Play intro</strong> plays the intro + question, then records for 1 min and saves to the library. It does not play the outro — you choose when. <strong>Play outro</strong> plays the thank-you clip whenever you choose. <strong>Play all</strong> plays intro → outro in full (no recording).
+        <strong>Play intro</strong> plays the intro + question, then starts recording. <strong>Play outro</strong> stops recording, plays the thank-you clip, transcribes, and saves to the library. <strong>Play all</strong> plays intro → outro in full (no recording).
       </p>
       <p className="mt-6 text-2xl text-neutral-300 md:text-3xl leading-relaxed">
         {status}
@@ -245,14 +260,15 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
       <div className="mt-10 flex flex-wrap gap-6">
         <button
           onClick={() => void runInterviewSession()}
-          disabled={isRunning}
+          disabled={isRunning || isRecording}
           className="border-2 border-neutral-200 px-8 py-5 text-xl text-neutral-100 disabled:opacity-40 hover:bg-neutral-800 transition-colors md:text-2xl"
         >
-          {isRunning ? 'running...' : 'play intro'}
+          {isRecording ? 'recording...' : isRunning ? 'running...' : 'play intro'}
         </button>
         <button
-          onClick={() => void playAudio(OUTRO_AUDIO)}
-          className="border-2 border-neutral-500 px-8 py-5 text-xl text-neutral-100 hover:bg-neutral-800 transition-colors md:text-2xl"
+          onClick={() => void handleOutro()}
+          disabled={isRunning && !isRecording}
+          className="border-2 border-neutral-500 px-8 py-5 text-xl text-neutral-100 hover:bg-neutral-800 transition-colors md:text-2xl disabled:opacity-40"
         >
           play outro
         </button>
@@ -261,7 +277,7 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
             await playAudio(INTRO_AND_QUESTION_AUDIO)
             await playAudio(OUTRO_AUDIO)
           }}
-          disabled={isRunning}
+          disabled={isRunning || isRecording}
           className="border-2 border-neutral-500 px-8 py-5 text-xl text-neutral-100 disabled:opacity-40 hover:bg-neutral-800 transition-colors md:text-2xl"
         >
           play all

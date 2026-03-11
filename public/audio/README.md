@@ -4,10 +4,10 @@
 
 For the `/interview` exhibit mode, place two pre-recorded audio files here:
 
-- `library_question.mp3` — Intro + first question combined ("Tell me about a time in your life when a book meant the most to you."). Then 1 min recording.
+- `library_question.mp3` — Intro + first question combined ("Tell me about a time in your life when a book meant the most to you.")
 - `exhibit-outro.mp3` — Thank-you / conclusion
 
-Flow: Play intro → intro+question → 1 min record → save. Controller plays outro when ready.
+Flow: Play intro → intro+question → recording starts. Controller hits play outro when done → recording stops → outro plays → transcribe and save.
 
 ## Book story recordings
 
