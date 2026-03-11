@@ -51,14 +51,16 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
   const pollState = useCallback(async () => {
     try {
       const res = await fetch('/api/exhibit/state')
-      const data = (await res.json()) as { mode?: string }
-      if (data.mode === 'killed' || data.mode === 'playing') {
-        setMode(data.mode)
-      }
+      const data = (await res.json()) as { mode?: string; devices?: Record<string, string> }
+      const globalMode = data.mode
+      const deviceMode = data.devices?.[String(deviceId)]
+      // Killed if either the global switch or this device's switch is off
+      const effective = globalMode === 'killed' || deviceMode === 'killed' ? 'killed' : 'playing'
+      setMode(effective)
     } catch {
       // keep previous mode
     }
-  }, [])
+  }, [deviceId])
 
   useEffect(() => {
     pollState()
