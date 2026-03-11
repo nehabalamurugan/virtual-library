@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Caveat, Playfair_Display } from 'next/font/google'
+import { Caveat, DM_Sans, Playfair_Display } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
@@ -11,6 +11,11 @@ const caveat = Caveat({
 const playfair = Playfair_Display({
   subsets: ['latin'],
   variable: '--font-playfair',
+})
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-dm-sans',
 })
 
 export const metadata: Metadata = {
@@ -46,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${caveat.variable} ${playfair.variable}`}>
+    <html lang="en" className={`${caveat.variable} ${playfair.variable} ${dmSans.variable}`}>
       <body className="font-sans antialiased overflow-x-hidden">
         {children}
         <Analytics />

@@ -3,24 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AddRecommendationPayload } from '@/lib/books'
 
-const QUESTION_ONE = 'Tell me about a time in your life when a book meant the most to you.'
-const QUESTION_TWO = 'What is the name of the book?'
-
 /** Pre-recorded audio files for exhibit. Place in public/audio/ */
 const AUDIO_VERSION = 'v2' // Bump this whenever you replace audio files
-const INTRO_AUDIO = `/audio/exhibit-intro.mp3?v=${AUDIO_VERSION}`
-const QUESTION_1_AUDIO = `/audio/exhibit-question1.mp3?v=${AUDIO_VERSION}`
-const QUESTION_2_AUDIO = `/audio/exhibit-question2.mp3?v=${AUDIO_VERSION}`
+/** Intro + first question combined */
+const INTRO_AND_QUESTION_AUDIO = `/audio/library_question.mp3?v=${AUDIO_VERSION}`
 const OUTRO_AUDIO = `/audio/exhibit-outro.mp3?v=${AUDIO_VERSION}`
 
-const INTRO_WAIT_MS = 5_000
-const Q1_RECORDING_MS = 60_000
-const Q2_RECORDING_MS = 30_000
-const BETWEEN_QUESTIONS_MS = 3_000
+const RECORDING_MS = 60_000
 const PRE_RECORD_DELAY_MS = 1_500
-const AUTO_THRESHOLD = 0.06
-const AUTO_HOLD_MS = 1_000
-const AUTO_COOLDOWN_MS = 12_000
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => {
@@ -40,36 +30,6 @@ async function playAudio(url: string): Promise<void> {
     await ended
   } catch {
     /* File missing or play failed, continue */
-  }
-}
-
-async function playQuestionAudio(url: string, fallbackText: string): Promise<void> {
-  if (typeof window === 'undefined') return
-
-  const audio = new Audio(url)
-  const ended = new Promise<void>((resolve) => {
-    audio.addEventListener('ended', () => resolve())
-    audio.addEventListener('error', () => resolve())
-  })
-  try {
-    await audio.play()
-    await ended
-    return
-  } catch {
-    /* File missing or play failed, fall through to TTS */
-  }
-
-  if ('speechSynthesis' in window) {
-    return new Promise<void>((resolve) => {
-      const utterance = new SpeechSynthesisUtterance(fallbackText)
-      utterance.rate = 0.95
-      utterance.pitch = 1
-      utterance.lang = 'en-US'
-      utterance.onend = () => resolve()
-      utterance.onerror = () => resolve()
-      window.speechSynthesis.cancel()
-      window.speechSynthesis.speak(utterance)
-    })
   }
 }
 
@@ -140,11 +100,11 @@ async function transcribeAudio(audioBlob: Blob, label: string) {
   return (body.transcript || '').trim()
 }
 
-async function extractEntry(q1Transcript: string, q2Transcript: string) {
+async function extractEntry(transcript: string) {
   const res = await fetch('/api/extract-entry', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q1Transcript, q2Transcript }),
+    body: JSON.stringify({ transcript }),
   })
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string }
@@ -166,21 +126,17 @@ async function postRecommendation(payload: AddRecommendationPayload) {
   }
 }
 
-export function ExhibitAudioMode() {
+type ExhibitAudioModeProps = {
+  /** When true, renders as a section for embedding in the combined control page */
+  embedded?: boolean
+}
+
+export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
   const [isRunning, setIsRunning] = useState(false)
   const [status, setStatus] = useState('Ready. Click start when participant sits down.')
   const [lastEntryPreview, setLastEntryPreview] = useState<{ title: string; story: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [isAutoArmed, setIsAutoArmed] = useState(false)
-  const [level, setLevel] = useState(0)
   const streamRef = useRef<MediaStream | null>(null)
-  const monitorStreamRef = useRef<MediaStream | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const levelBufferRef = useRef<Uint8Array | null>(null)
-  const animationFrameRef = useRef<number | null>(null)
-  const noiseStartRef = useRef<number | null>(null)
-  const cooldownUntilRef = useRef<number>(0)
 
   const stopStream = useCallback(() => {
     if (!streamRef.current) return
@@ -190,82 +146,40 @@ export function ExhibitAudioMode() {
     streamRef.current = null
   }, [])
 
-  const stopMonitoring = useCallback(() => {
-    if (animationFrameRef.current !== null) {
-      window.cancelAnimationFrame(animationFrameRef.current)
-      animationFrameRef.current = null
-    }
-    analyserRef.current = null
-    levelBufferRef.current = null
-    if (audioContextRef.current) {
-      void audioContextRef.current.close()
-      audioContextRef.current = null
-    }
-    if (monitorStreamRef.current) {
-      for (const track of monitorStreamRef.current.getTracks()) {
-        track.stop()
-      }
-      monitorStreamRef.current = null
-    }
-    noiseStartRef.current = null
-    setLevel(0)
-  }, [])
-
-  const runInterviewSession = useCallback(async (providedStream?: MediaStream) => {
+  const runInterviewSession = useCallback(async () => {
     if (isRunning) return
 
     setIsRunning(true)
     setError(null)
-    setStatus(providedStream ? 'Starting interview...' : 'Requesting microphone access...')
-    const ownsStream = !providedStream
+    setStatus('Requesting microphone access...')
 
     try {
-      const stream =
-        providedStream ??
-        (await navigator.mediaDevices.getUserMedia({ audio: true }))
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
 
-      setStatus('Playing intro...')
-      await playAudio(INTRO_AUDIO)
-
-      setStatus('Pausing 5 seconds...')
-      await wait(INTRO_WAIT_MS)
-
-      setStatus('Asking question 1...')
-      await playQuestionAudio(QUESTION_1_AUDIO, QUESTION_ONE)
+      setStatus('Playing intro and question...')
+      await playAudio(INTRO_AND_QUESTION_AUDIO)
       await wait(PRE_RECORD_DELAY_MS)
 
-      setStatus('Recording answer 1 (1 min)...')
+      setStatus('Recording (1 min)...')
       let recordStream = stream
-      let answerOneAudio: Blob
+      let answerAudio: Blob
       try {
-        answerOneAudio = await recordForDuration(stream, Q1_RECORDING_MS)
+        answerAudio = await recordForDuration(stream, RECORDING_MS)
       } catch (recordErr) {
         recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        if (ownsStream) for (const t of stream.getTracks()) t.stop()
-        answerOneAudio = await recordForDuration(recordStream, Q1_RECORDING_MS)
+        for (const t of stream.getTracks()) t.stop()
+        answerAudio = await recordForDuration(recordStream, RECORDING_MS)
       }
-
-      await wait(BETWEEN_QUESTIONS_MS)
-      setStatus('Asking question 2...')
-      await playQuestionAudio(QUESTION_2_AUDIO, QUESTION_TWO)
-      await wait(PRE_RECORD_DELAY_MS)
-
-      setStatus('Recording answer 2 (30 sec)...')
-      const answerTwoAudio = await recordForDuration(recordStream, Q2_RECORDING_MS)
 
       if (recordStream !== stream) for (const t of recordStream.getTracks()) t.stop()
 
-      setStatus('Transcribing answer 1...')
-      const answerOneTranscript = await transcribeAudio(answerOneAudio, 'question-one')
-      console.log('[Living Library] Q1 transcript:', answerOneTranscript)
-
-      setStatus('Transcribing answer 2...')
-      const answerTwoTranscript = await transcribeAudio(answerTwoAudio, 'question-two')
-      console.log('[Living Library] Q2 transcript:', answerTwoTranscript)
+      setStatus('Transcribing...')
+      const transcript = await transcribeAudio(answerAudio, 'question-one')
+      console.log('[Living Library] transcript:', transcript)
 
       setStatus('Extracting book details...')
-      const extracted = await extractEntry(answerOneTranscript, answerTwoTranscript)
+      const extracted = await extractEntry(transcript)
 
       const payload: AddRecommendationPayload = {
         title: extracted.title,
@@ -274,100 +188,27 @@ export function ExhibitAudioMode() {
         story: extracted.story,
         dateAdded: new Date().toISOString().slice(0, 10),
         source: 'exhibit_audio',
-        q1Transcript: answerOneTranscript,
-        q2Transcript: answerTwoTranscript,
+        q1Transcript: transcript,
+        q2Transcript: '',
       }
 
       setStatus('Saving to Living Library...')
       await postRecommendation(payload)
 
       setLastEntryPreview({ title: extracted.title, story: extracted.story })
-      setStatus('Playing outro...')
-      await playAudio(OUTRO_AUDIO)
-      setStatus('Session complete. Ready for next participant.')
+      setStatus('Recording saved. Play outro when ready.')
     } catch (sessionError) {
       console.error(sessionError)
       setError(sessionError instanceof Error ? sessionError.message : 'Interview session failed.')
       setStatus('Session failed. Check audio permissions and try again.')
     } finally {
-      if (ownsStream) {
-        stopStream()
-      }
+      stopStream()
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel()
       }
-      cooldownUntilRef.current = Date.now() + AUTO_COOLDOWN_MS
       setIsRunning(false)
     }
   }, [isRunning, stopStream])
-
-  const runAutoDetectionLoop = useCallback(() => {
-    const analyser = analyserRef.current
-    const buffer = levelBufferRef.current
-    if (!analyser || !buffer) return
-
-    analyser.getByteTimeDomainData(buffer as Uint8Array<ArrayBuffer>)
-
-    let sumSquares = 0
-    for (let i = 0; i < buffer.length; i++) {
-      const normalized = (buffer[i] - 128) / 128
-      sumSquares += normalized * normalized
-    }
-    const rms = Math.sqrt(sumSquares / buffer.length)
-    setLevel(rms)
-
-    const now = Date.now()
-    if (!isRunning && now >= cooldownUntilRef.current) {
-      if (rms >= AUTO_THRESHOLD) {
-        if (noiseStartRef.current === null) {
-          noiseStartRef.current = now
-        } else if (now - noiseStartRef.current >= AUTO_HOLD_MS && monitorStreamRef.current) {
-          noiseStartRef.current = null
-          void runInterviewSession(monitorStreamRef.current)
-        }
-      } else {
-        noiseStartRef.current = null
-      }
-    }
-
-    animationFrameRef.current = window.requestAnimationFrame(runAutoDetectionLoop)
-  }, [isRunning, runInterviewSession])
-
-  const armAutoStart = useCallback(async () => {
-    if (isAutoArmed) return
-    setError(null)
-    setStatus('Arming auto-start microphone monitor...')
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      monitorStreamRef.current = stream
-
-      const audioContext = new AudioContext()
-      audioContextRef.current = audioContext
-      const source = audioContext.createMediaStreamSource(stream)
-      const analyser = audioContext.createAnalyser()
-      analyser.fftSize = 1024
-      source.connect(analyser)
-
-      analyserRef.current = analyser
-      levelBufferRef.current = new Uint8Array(analyser.fftSize)
-      cooldownUntilRef.current = Date.now() + 2_000
-      setIsAutoArmed(true)
-      setStatus('Auto-start armed. Speaking near the chair will trigger a session.')
-      runAutoDetectionLoop()
-    } catch (armingError) {
-      console.error(armingError)
-      setError(armingError instanceof Error ? armingError.message : 'Could not arm auto-start.')
-      setStatus('Auto-start arm failed.')
-      stopMonitoring()
-    }
-  }, [isAutoArmed, runAutoDetectionLoop, stopMonitoring])
-
-  const disarmAutoStart = useCallback(() => {
-    stopMonitoring()
-    setIsAutoArmed(false)
-    setStatus('Auto-start disarmed. Click start manually or arm again.')
-  }, [stopMonitoring])
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -381,79 +222,79 @@ export function ExhibitAudioMode() {
     return () => {
       window.removeEventListener('keydown', onKeyDown)
       stopStream()
-      stopMonitoring()
       if ('speechSynthesis' in window) window.speechSynthesis.cancel()
     }
-  }, [isRunning, runInterviewSession, stopMonitoring, stopStream])
+  }, [isRunning, runInterviewSession, stopStream])
+
+  const content = (
+    <section className={`font-control w-full border-2 border-neutral-600 bg-neutral-950/90 p-12 ${embedded ? '' : 'max-w-4xl'}`}>
+      <h1 className="text-4xl font-semibold text-neutral-100 md:text-5xl">
+        Audio Interview
+      </h1>
+      <p className="mt-4 text-lg text-neutral-500 md:text-xl">
+        <strong>Play intro</strong> plays the intro + question, then records for 1 min and saves to the library. It does not play the outro — you choose when. <strong>Play outro</strong> plays the thank-you clip whenever you choose. <strong>Play all</strong> plays intro → outro in full (no recording).
+      </p>
+      <p className="mt-6 text-2xl text-neutral-300 md:text-3xl leading-relaxed">
+        {status}
+      </p>
+      {error && (
+        <p className="mt-4 text-xl text-red-400 md:text-2xl">
+          {error}
+        </p>
+      )}
+      <div className="mt-10 flex flex-wrap gap-6">
+        <button
+          onClick={() => void runInterviewSession()}
+          disabled={isRunning}
+          className="border-2 border-neutral-200 px-8 py-5 text-xl text-neutral-100 disabled:opacity-40 hover:bg-neutral-800 transition-colors md:text-2xl"
+        >
+          {isRunning ? 'running...' : 'play intro'}
+        </button>
+        <button
+          onClick={() => void playAudio(OUTRO_AUDIO)}
+          className="border-2 border-neutral-500 px-8 py-5 text-xl text-neutral-100 hover:bg-neutral-800 transition-colors md:text-2xl"
+        >
+          play outro
+        </button>
+        <button
+          onClick={async () => {
+            await playAudio(INTRO_AND_QUESTION_AUDIO)
+            await playAudio(OUTRO_AUDIO)
+          }}
+          disabled={isRunning}
+          className="border-2 border-neutral-500 px-8 py-5 text-xl text-neutral-100 disabled:opacity-40 hover:bg-neutral-800 transition-colors md:text-2xl"
+        >
+          play all
+        </button>
+      </div>
+
+      <p className="mt-8 text-lg text-neutral-500 md:text-xl">
+        Operator shortcut: press space to start (intro + record).
+      </p>
+
+      {lastEntryPreview && (
+        <div className="mt-10 border-2 border-neutral-700 p-6 rounded">
+          <p className="text-lg uppercase tracking-wider text-neutral-500 md:text-xl">
+            Last saved entry
+          </p>
+          <p className="mt-4 text-xl text-neutral-200 md:text-2xl">
+            {lastEntryPreview.title}
+          </p>
+          <p className="mt-3 line-clamp-4 text-lg text-neutral-400 md:text-xl leading-relaxed">
+            {lastEntryPreview.story}
+          </p>
+        </div>
+      )}
+      </section>
+  )
+
+  if (embedded) {
+    return content
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-black px-8 py-10 text-neutral-200">
-      <section className="w-full max-w-4xl border-2 border-neutral-600 bg-neutral-950/90 p-12">
-        <h1 className="font-sans text-4xl font-semibold text-neutral-100 md:text-5xl">
-          Living Library Exhibit Audio Mode
-        </h1>
-        <p className="mt-6 font-sans text-2xl text-neutral-300 md:text-3xl leading-relaxed">
-          {status}
-        </p>
-        {error && (
-          <p className="mt-4 font-sans text-xl text-red-400 md:text-2xl">
-            {error}
-          </p>
-        )}
-        <div className="mt-10 flex flex-wrap gap-6">
-          <button
-            onClick={() => void runInterviewSession()}
-            disabled={isRunning}
-            className="border-2 border-neutral-200 px-8 py-5 font-sans text-xl text-neutral-100 disabled:opacity-40 hover:bg-neutral-800 transition-colors md:text-2xl"
-          >
-            {isRunning ? 'running...' : 'start session'}
-          </button>
-          <button
-            onClick={() => {
-              if (isAutoArmed) {
-                disarmAutoStart()
-              } else {
-                void armAutoStart()
-              }
-            }}
-            disabled={isRunning}
-            className="border-2 border-neutral-500 px-8 py-5 font-sans text-xl text-neutral-100 disabled:opacity-40 hover:bg-neutral-800 transition-colors md:text-2xl"
-          >
-            {isAutoArmed ? 'disarm auto-start' : 'arm auto-start'}
-          </button>
-        </div>
-
-        <p className="mt-8 font-sans text-lg text-neutral-500 md:text-xl">
-          Operator shortcut: press space to start.
-        </p>
-        {isAutoArmed && (
-          <div className="mt-8">
-            <p className="mb-3 font-sans text-lg text-neutral-500 md:text-xl">
-              Auto level: {(level * 100).toFixed(1)}%
-            </p>
-            <div className="h-6 w-full bg-neutral-800 rounded">
-              <div
-                className="h-6 bg-neutral-300 rounded transition-all"
-                style={{ width: `${Math.min(100, Math.max(0, level * 300))}%` }}
-              />
-            </div>
-          </div>
-        )}
-
-        {lastEntryPreview && (
-          <div className="mt-10 border-2 border-neutral-700 p-6 rounded">
-            <p className="font-sans text-lg uppercase tracking-wider text-neutral-500 md:text-xl">
-              Last saved entry
-            </p>
-            <p className="mt-4 font-sans text-xl text-neutral-200 md:text-2xl">
-              {lastEntryPreview.title}
-            </p>
-            <p className="mt-3 line-clamp-4 font-sans text-lg text-neutral-400 md:text-xl leading-relaxed">
-              {lastEntryPreview.story}
-            </p>
-          </div>
-        )}
-      </section>
+      {content}
     </main>
   )
 }

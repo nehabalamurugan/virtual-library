@@ -197,3 +197,8 @@
   background: #0a0a0a;
   color: #faf9f7;
 }
+
+/* Control panel: highly readable font */
+.font-control {
+  font-family: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+}

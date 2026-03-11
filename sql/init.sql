@@ -23,3 +23,10 @@ CREATE TABLE IF NOT EXISTS recommendations (
   audio_file TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS exhibit_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT INTO exhibit_state (key, value) VALUES ('mode', 'playing')
+ON CONFLICT (key) DO NOTHING;

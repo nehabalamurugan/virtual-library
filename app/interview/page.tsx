@@ -1,5 +1,5 @@
-import { ExhibitAudioMode } from '@/components/exhibit-audio-mode'
+import { redirect } from 'next/navigation'
 
 export default function InterviewPage() {
-  return <ExhibitAudioMode />
+  redirect('/exhibit/control')
 }

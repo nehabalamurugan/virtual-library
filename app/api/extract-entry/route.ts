@@ -4,14 +4,12 @@ export const runtime = 'nodejs'
 
 const SYSTEM_PROMPT = `You are extracting structured data from an interview about books.
 
-The interviewee answered two questions:
-1. "Tell me about a time in your life when a book meant the most to you" (their story/narrative)
-2. "What is the name of the book?" (the book title, sometimes with author)
+The interviewee answered a single question combining intro and: "Tell me about a time in your life when a book meant the most to you." Their response typically includes their story/narrative and often mentions the book title and author.
 
 Extract and return JSON with exactly these fields:
 - title: the book title (string). Use "Unknown" only if impossible to determine.
 - author: the author's name if mentioned (string). Use "Unknown" if not mentioned.
-- story: the narrative from question 1, cleaned up for readability (string). Preserve their voice and meaning.`
+- story: the narrative, cleaned up for readability (string). Preserve their voice and meaning.`
 
 export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY
@@ -22,24 +20,28 @@ export async function POST(request: Request) {
     )
   }
 
-  let body: { q1Transcript?: string; q2Transcript?: string }
+  let body: { transcript?: string; q1Transcript?: string; q2Transcript?: string }
   try {
-    body = (await request.json()) as { q1Transcript?: string; q2Transcript?: string }
+    body = (await request.json()) as { transcript?: string; q1Transcript?: string; q2Transcript?: string }
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
   }
 
-  const q1 = (body.q1Transcript ?? '').trim()
+  const transcript = (body.transcript ?? body.q1Transcript ?? '').trim()
   const q2 = (body.q2Transcript ?? '').trim()
 
-  if (!q1 && !q2) {
+  if (!transcript && !q2) {
     return NextResponse.json(
-      { error: 'At least one of q1Transcript or q2Transcript is required.' },
+      { error: 'transcript (or q1Transcript) is required.' },
       { status: 400 }
     )
   }
 
-  const userContent = `Question 1 (story): ${q1 || '(no response)'}\n\nQuestion 2 (book name): ${q2 || '(no response)'}`
+  const userContent = transcript
+    ? q2
+      ? `Transcript (story): ${transcript}\n\nBook name (if separate): ${q2}`
+      : `Transcript: ${transcript}`
+    : `Book name: ${q2}`
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -74,7 +76,7 @@ export async function POST(request: Request) {
     const result = {
       title: String(parsed.title ?? 'Unknown').trim() || 'Unknown',
       author: String(parsed.author ?? 'Unknown').trim() || 'Unknown',
-      story: String(parsed.story ?? '').trim() || q1 || 'No story captured.',
+      story: String(parsed.story ?? '').trim() || transcript || 'No story captured.',
     }
 
     return NextResponse.json(result)
