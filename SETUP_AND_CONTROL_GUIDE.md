@@ -54,7 +54,7 @@ Replace `YOUR-DOMAIN` with your actual deployment URL (e.g. `living-library.verc
 | Behavior | Description |
 |----------|-------------|
 | **Tap to start** | Visitor taps to unmute and play video |
-| **Face detection** | When a face is detected, screen goes black (privacy). Requires camera permission. |
+| **Face detection** | When a face is detected, screen goes black and stays black until visitor taps "Tap to start again". Requires camera permission. |
 | **Kill switch** | When control is set to "Killed", all devices go black |
 
 *Tip: Grant camera access when prompted so face detection works. On HTTPS only.*

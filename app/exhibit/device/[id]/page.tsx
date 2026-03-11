@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 
-const FACE_DEBOUNCE_MS = 250
 const DETECTION_INTERVAL = 4
 const STATE_POLL_MS = 1000
 const FACE_MODEL =
@@ -36,7 +35,6 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
   const streamRef = useRef<MediaStream | null>(null)
   const faceDetectorRef = useRef<Awaited<ReturnType<typeof import('@mediapipe/tasks-vision').FaceDetector.createFromOptions>> | null>(null)
   const frameCountRef = useRef(0)
-  const lastFaceTimeRef = useRef<number>(0)
   const lastDetectTimestampRef = useRef<number>(Date.now())
   const warmupFramesRef = useRef(0)
   const rafRef = useRef<number>(0)
@@ -193,17 +191,14 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
       frameCountRef.current += 1
       if (frameCountRef.current % DETECTION_INTERVAL === 0) {
         try {
-          const now = performance.now()
           // MediaPipe requires strictly increasing integer timestamps (ms). Use simple increment.
           lastDetectTimestampRef.current += 34 // ~30fps
           const timestamp = lastDetectTimestampRef.current
           const result = det.detectForVideo(cam, timestamp)
           const hasFace = result.detections && result.detections.length > 0
           if (hasFace) {
-            lastFaceTimeRef.current = now
+            setFaceDetected(true) // Stays black until user resets
           }
-          const elapsed = now - lastFaceTimeRef.current
-          setFaceDetected(elapsed < FACE_DEBOUNCE_MS || hasFace)
         } catch (e) {
           // Keep timestamp increasing so next attempt succeeds
           lastDetectTimestampRef.current += 34
@@ -242,6 +237,15 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
         loop
       />
       {showBlack && <div className="absolute inset-0 bg-black" />}
+      {faceDetected && mode !== 'killed' && (
+        <button
+          type="button"
+          onClick={() => setFaceDetected(false)}
+          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black text-white transition-opacity hover:bg-black/90"
+        >
+          <span className="rounded bg-neutral-800 px-8 py-4 font-sans text-xl">Tap to start again</span>
+        </button>
+      )}
       {!userActivated && !showBlack && (
         <button
           type="button"
