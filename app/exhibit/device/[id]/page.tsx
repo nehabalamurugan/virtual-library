@@ -78,19 +78,17 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
     }
   }, [showBlack, videoUrl, userActivated])
 
-  const handleActivate = useCallback(() => {
-    setUserActivated(true)
-    const video = videoRef.current
-    if (video && !showBlack) {
-      video.muted = false
-      video.play().catch(() => {})
-    }
-  }, [showBlack])
-
   useEffect(() => {
     let cancelled = false
 
     async function init() {
+      // On mobile, delay face detection so the main video can start first (iOS limits concurrent video)
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+      if (isMobile) {
+        await new Promise((r) => setTimeout(r, 2000))
+      }
+      if (cancelled) return
+
       try {
         const { FilesetResolver, FaceDetector } = await import('@mediapipe/tasks-vision')
         const vision = await FilesetResolver.forVisionTasks(WASM_PATH)
@@ -223,6 +221,23 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
     )
   }
 
+  const handleVideoCanPlay = useCallback(() => {
+    const video = videoRef.current
+    if (video && !showBlack && video.paused) {
+      video.play().catch(() => {})
+    }
+  }, [showBlack])
+
+  const handleTapToStart = useCallback(() => {
+    setUserActivated(true)
+    const video = videoRef.current
+    if (video && !showBlack) {
+      video.muted = false
+      // Must call play() synchronously in click handler for iOS to allow unmuted playback
+      video.play().catch(() => {})
+    }
+  }, [showBlack])
+
   return (
     <div className="relative h-screen w-full overflow-hidden bg-black">
       <video
@@ -235,6 +250,8 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
         playsInline
         autoPlay
         loop
+        preload="auto"
+        onCanPlay={handleVideoCanPlay}
       />
       {showBlack && <div className="absolute inset-0 bg-black" />}
       {faceDetected && mode !== 'killed' && (
@@ -249,7 +266,7 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
       {!userActivated && !showBlack && (
         <button
           type="button"
-          onClick={handleActivate}
+          onClick={handleTapToStart}
           className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/40 text-white transition-opacity hover:bg-black/30"
         >
           <span className="rounded bg-black/60 px-8 py-4 font-sans text-xl">Tap to start</span>
