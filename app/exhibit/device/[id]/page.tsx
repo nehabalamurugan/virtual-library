@@ -44,6 +44,7 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [detectorReady, setDetectorReady] = useState(false)
   const [userActivated, setUserActivated] = useState(false)
+  const [videoError, setVideoError] = useState<string | null>(null)
 
   const videoUrl = getVideoUrl(deviceId)
   const showBlack = mode === 'killed' || faceDetected
@@ -81,8 +82,12 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
   }, [showBlack, videoUrl, userActivated])
 
   useEffect(() => {
-    // Skip face detection on iOS/Android — camera + video concurrency breaks playback on mobile
-    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) return
+    // Skip face detection on mobile. iPadOS 13+ reports a Mac user agent, so also check
+    // navigator.maxTouchPoints to catch iPads that are pretending to be desktop Safari.
+    const isMobile =
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+      (/Mac/.test(navigator.platform) && navigator.maxTouchPoints > 1)
+    if (isMobile) return
 
     let cancelled = false
 
@@ -234,9 +239,14 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
     setUserActivated(true)
     const video = videoRef.current
     if (video && !showBlack) {
-      video.muted = false
-      // Must call play() synchronously in click handler for iOS to allow unmuted playback
-      video.play().catch(() => {})
+      // Start muted first (always allowed on iOS), then unmute once playing
+      video.muted = true
+      video.play().then(() => {
+        video.muted = false
+      }).catch(() => {
+        // If play still fails, at least keep it muted so user can try again
+        video.muted = true
+      })
     }
   }, [showBlack])
 
@@ -261,16 +271,29 @@ function ExhibitDeviceClient({ deviceId }: { deviceId: number }) {
         loop
         preload="auto"
         onCanPlay={handleVideoCanPlay}
+        onError={(e) => setVideoError(`Video error: ${(e.currentTarget.error?.message) ?? 'unknown'}`)}
       />
       {showBlack && <div className="absolute inset-0 bg-black" />}
+      {faceDetected && mode !== 'killed' && (
+        <button
+          type="button"
+          onClick={() => setFaceDetected(false)}
+          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black text-white"
+        >
+          <span className="rounded border border-white/60 bg-white/10 px-8 py-4 font-sans text-xl">Tap to start again</span>
+        </button>
+      )}
       {!userActivated && !showBlack && (
         <button
           type="button"
           onClick={handleTapToStart}
-          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/20 text-white transition-opacity hover:bg-black/10"
+          className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/20 text-white"
         >
           <span className="rounded border border-white/60 bg-white/20 px-8 py-4 font-sans text-xl backdrop-blur-sm">Tap to start</span>
         </button>
+      )}
+      {videoError && (
+        <p className="pointer-events-none absolute bottom-16 left-4 right-4 text-center text-sm text-red-400">{videoError}</p>
       )}
       <video
         ref={cameraRef}
