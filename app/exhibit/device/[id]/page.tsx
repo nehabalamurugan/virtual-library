@@ -17,10 +17,10 @@ const VIDEO_ENV_KEYS = [
 ] as const
 
 const DEFAULT_VIDEO_URLS: Record<number, string> = {
-  1: 'https://res.cloudinary.com/dwkuqttoe/video/upload/v1773216047/phone2_aadiaf.mp4',
-  2: 'https://res.cloudinary.com/dwkuqttoe/video/upload/v1773216046/phone1_be2fnt.mp4',
-  3: 'https://res.cloudinary.com/dwkuqttoe/video/upload/v1773216042/ipad1_p1tg0x.mp4',
-  4: 'https://res.cloudinary.com/dwkuqttoe/video/upload/v1773216038/ipad2_ivicig.mp4',
+  1: 'https://res.cloudinary.com/dwkuqttoe/video/upload/vc_h264,ac_aac/v1773216047/phone2_aadiaf.mp4',
+  2: 'https://res.cloudinary.com/dwkuqttoe/video/upload/vc_h264,ac_aac/v1773216046/phone1_be2fnt.mp4',
+  3: 'https://res.cloudinary.com/dwkuqttoe/video/upload/vc_h264,ac_aac/v1773216042/ipad1_p1tg0x.mp4',
+  4: 'https://res.cloudinary.com/dwkuqttoe/video/upload/vc_h264,ac_aac/v1773216038/ipad2_ivicig.mp4',
 }
 
 function getVideoUrl(deviceId: number): string | undefined {

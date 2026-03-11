@@ -149,6 +149,16 @@ export default function ExhibitControlPage() {
                   </div>
                 )
               })}
+              <div className="flex items-center gap-4 pt-2">
+                <a
+                  href="/exhibit/test"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-lg text-neutral-500 hover:underline"
+                >
+                  Test (video only, no face detection) ↗
+                </a>
+              </div>
             </div>
           </div>
         </section>

@@ -16,6 +16,7 @@ Replace `YOUR-DOMAIN` with your actual deployment URL (e.g. `living-library.verc
 | **Device 2** | `https://YOUR-DOMAIN/exhibit/device/2` |
 | **Device 3** | `https://YOUR-DOMAIN/exhibit/device/3` |
 | **Device 4** | `https://YOUR-DOMAIN/exhibit/device/4` |
+| **Exhibit test** (video only, no face detection; responds to kill switch) | `https://YOUR-DOMAIN/exhibit/test` |
 | **Audio test** (debug: record + transcribe) | `https://YOUR-DOMAIN/interview/test` |
 
 *`/interview` redirects to `/exhibit/control`.*
