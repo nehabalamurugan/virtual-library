@@ -7,7 +7,7 @@ export async function POST(request: Request) {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     return NextResponse.json(
-      { error: 'OPENAI_API_KEY is not configured.' },
+      { error: 'OPENAI_API_KEY is not configured. Add it to .env.local and restart the dev server.' },
       { status: 500 }
     )
   }
@@ -38,7 +38,16 @@ export async function POST(request: Request) {
     if (!response.ok) {
       const errorText = await response.text()
       console.error('Whisper transcription failed:', errorText)
-      return NextResponse.json({ error: 'Transcription failed' }, { status: 502 })
+      let message = 'Transcription failed'
+      try {
+        const errJson = JSON.parse(errorText) as { error?: { message?: string }; message?: string }
+        message = errJson?.error?.message ?? errJson?.message ?? errorText.slice(0, 200)
+      } catch {
+        if (errorText.includes('api_key') || errorText.includes('invalid_api_key')) {
+          message = 'OPENAI_API_KEY is invalid or not set. Check your .env.local.'
+        }
+      }
+      return NextResponse.json({ error: message }, { status: 502 })
     }
 
     const data = (await response.json()) as { text?: string }
@@ -47,7 +56,7 @@ export async function POST(request: Request) {
     appendToExhibitLog({ type: 'transcription', label, transcript })
     if (!transcript) {
       return NextResponse.json(
-        { error: 'No transcript returned from transcription service.' },
+        { error: 'No transcript returned — audio may be too short, silent, or in an unsupported format.' },
         { status: 502 }
       )
     }
@@ -55,6 +64,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ transcript })
   } catch (error) {
     console.error('Transcription request failed:', error)
-    return NextResponse.json({ error: 'Transcription request failed' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Transcription request failed'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

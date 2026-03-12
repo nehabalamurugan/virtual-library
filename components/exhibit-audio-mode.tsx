@@ -10,6 +10,8 @@ const INTRO_AND_QUESTION_AUDIO = `/audio/library_question.mp3?v=${AUDIO_VERSION}
 const OUTRO_AUDIO = `/audio/exhibit-outro.mp3?v=${AUDIO_VERSION}`
 
 const PRE_RECORD_DELAY_MS = 1_500
+const MIN_RECORDING_MS = 5_000
+const MIN_RECORDING_BYTES = 10_000
 
 function wait(ms: number) {
   return new Promise<void>((resolve) => {
@@ -27,8 +29,9 @@ async function playAudio(url: string): Promise<void> {
   try {
     await audio.play()
     await ended
-  } catch {
-    /* File missing or play failed, continue */
+  } catch (err) {
+    console.error('[Living Library] Audio play failed:', err)
+    throw err
   }
 }
 
@@ -114,6 +117,7 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
   const streamRef = useRef<MediaStream | null>(null)
   const recorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
+  const recordingStartTimeRef = useRef<number>(0)
 
   const stopStream = useCallback(() => {
     if (!streamRef.current) return
@@ -128,10 +132,17 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
     recorderRef.current = null
     stopStream()
 
-    try {
-      setStatus('Playing outro...')
-      await playAudio(OUTRO_AUDIO)
+    const durationMs = Date.now() - recordingStartTimeRef.current
+    if (durationMs < MIN_RECORDING_MS || audioBlob.size < MIN_RECORDING_BYTES) {
+      setError(
+        `Recording too short (${(durationMs / 1000).toFixed(1)}s). Please record for at least ${MIN_RECORDING_MS / 1000} seconds before pressing play outro.`
+      )
+      setStatus('Recording too short. Click play intro to try again.')
+      setIsRunning(false)
+      return
+    }
 
+    try {
       setStatus('Transcribing...')
       const transcript = await transcribeAudio(audioBlob, 'question-one')
       console.log('[Living Library] transcript:', transcript)
@@ -187,6 +198,7 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
 
       setStatus('Recording... Press play outro when done.')
       chunksRef.current = []
+      recordingStartTimeRef.current = Date.now()
       const recorder = createAndStartRecorder(stream)
       recorderRef.current = recorder
       setIsRecording(true)
@@ -217,11 +229,19 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
   const handleOutro = useCallback(async () => {
     const recorder = recorderRef.current
     if (isRecording && recorder && recorder.state !== 'inactive') {
+      // Play outro immediately (must be in click handler for browser autoplay policy)
+      playAudio(OUTRO_AUDIO).catch((e) => {
+        setError(e instanceof Error ? e.message : 'Audio failed to play')
+      })
       recorder.stop()
       return
     }
     if (!isRecording) {
-      await playAudio(OUTRO_AUDIO)
+      try {
+        await playAudio(OUTRO_AUDIO)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Audio failed to play')
+      }
     }
   }, [isRecording])
 
@@ -234,12 +254,17 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
     }
 
     window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isRunning, isRecording, runInterviewSession])
+
+  useEffect(() => {
     return () => {
-      window.removeEventListener('keydown', onKeyDown)
       stopStream()
-      if ('speechSynthesis' in window) window.speechSynthesis.cancel()
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel()
+      }
     }
-  }, [isRunning, isRecording, runInterviewSession, stopStream])
+  }, [stopStream])
 
   const content = (
     <section className={`font-control w-full border-2 border-neutral-600 bg-neutral-950/90 p-12 ${embedded ? '' : 'max-w-4xl'}`}>
@@ -274,8 +299,13 @@ export function ExhibitAudioMode({ embedded }: ExhibitAudioModeProps) {
         </button>
         <button
           onClick={async () => {
-            await playAudio(INTRO_AND_QUESTION_AUDIO)
-            await playAudio(OUTRO_AUDIO)
+            try {
+              setError(null)
+              await playAudio(INTRO_AND_QUESTION_AUDIO)
+              await playAudio(OUTRO_AUDIO)
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Audio failed to play')
+            }
           }}
           disabled={isRunning || isRecording}
           className="border-2 border-neutral-500 px-8 py-5 text-xl text-neutral-100 disabled:opacity-40 hover:bg-neutral-800 transition-colors md:text-2xl"
